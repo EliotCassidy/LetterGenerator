@@ -79,6 +79,31 @@ def has_enclosed_space(matrix: np.ndarray) -> bool:
     return False
 
 
+def has_disconnected_parts(matrix: np.ndarray) -> bool:
+    """Return True if the graph has more than one non-empty connected component."""
+
+    adjacency = _validate_binary_symmetric_matrix(matrix)
+    visited = [False] * 9
+
+    def depth_first_search(node: int) -> None:
+        visited[node] = True
+        for neighbor in range(9):
+            if adjacency[node, neighbor] == 1 and not visited[neighbor]:
+                depth_first_search(neighbor)
+
+    active_nodes = [node for node in range(9) if np.any(adjacency[node] == 1)]
+
+    components = 0
+    for node in active_nodes:
+        if not visited[node]:
+            components += 1
+            if components > 1:
+                return True
+            depth_first_search(node)
+
+    return False
+
+
 def has_visual_crossings(matrix: np.ndarray) -> bool:
     """Return True if at least two drawn edges cross visually.
 
@@ -201,6 +226,8 @@ if __name__ == "__main__":
     has_diagonal = has_diagonal_connections(sample)
     has_cycle = has_enclosed_space(sample)
     has_crossings = has_visual_crossings(sample)
+    has_disconnected = has_disconnected_parts(sample)
     print(f"Has diagonal connections: {has_diagonal}")
     print(f"Has enclosed space: {has_cycle}")
     print(f"Has visual crossings: {has_crossings}")
+    print(f"Has disconnected parts: {has_disconnected}")
