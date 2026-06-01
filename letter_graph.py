@@ -79,6 +79,70 @@ def has_enclosed_space(matrix: np.ndarray) -> bool:
     return False
 
 
+def has_visual_crossings(matrix: np.ndarray) -> bool:
+    """Return True if at least two drawn edges cross visually.
+
+    This checks segment intersections in the 3x3 layout and ignores pairs of
+    edges that only meet because they share a node or touch at an endpoint.
+    It still counts cases where a segment passes through a node that is the
+    endpoint of another segment, which is a visually meaningful crossing.
+    """
+
+    adjacency = _validate_binary_symmetric_matrix(matrix)
+    edges = []
+
+    for i in range(9):
+        for j in range(i + 1, 9):
+            if adjacency[i, j] == 1:
+                edges.append((i, j))
+
+    def orientation(p, q, r):
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+
+    def on_segment(p, q, r):
+        return (
+            min(p[0], r[0]) <= q[0] <= max(p[0], r[0])
+            and min(p[1], r[1]) <= q[1] <= max(p[1], r[1])
+            and orientation(p, q, r) == 0
+        )
+
+    def segments_cross(p1, q1, p2, q2):
+        o1 = orientation(p1, q1, p2)
+        o2 = orientation(p1, q1, q2)
+        o3 = orientation(p2, q2, p1)
+        o4 = orientation(p2, q2, q1)
+
+        if (o1 > 0) != (o2 > 0) and (o3 > 0) != (o4 > 0):
+            return True
+
+        # If a node lies on the interior of one segment and is an endpoint of
+        # another, that is also a visible crossing in this drawing.
+        for node in (p2, q2):
+            if node != p1 and node != q1 and on_segment(p1, node, q1):
+                return True
+
+        for node in (p1, q1):
+            if node != p2 and node != q2 and on_segment(p2, node, q2):
+                return True
+
+        return False
+
+    for index, (i1, j1) in enumerate(edges):
+        p1 = POSITIONS[LABELS[i1]]
+        q1 = POSITIONS[LABELS[j1]]
+
+        for i2, j2 in edges[index + 1 :]:
+            if {i1, j1} & {i2, j2}:
+                continue
+
+            p2 = POSITIONS[LABELS[i2]]
+            q2 = POSITIONS[LABELS[j2]]
+            if segments_cross(p1, q1, p2, q2):
+                return True
+
+    return False
+
+
 def render_letter_graph(matrix: np.ndarray, dpi: int = 200) -> Image.Image:
     """Render a symmetric 9x9 binary adjacency matrix as a 3x3 letter graph."""
 
@@ -136,5 +200,7 @@ if __name__ == "__main__":
     save_letter_graph(sample, "letter_graph.png")
     has_diagonal = has_diagonal_connections(sample)
     has_cycle = has_enclosed_space(sample)
+    has_crossings = has_visual_crossings(sample)
     print(f"Has diagonal connections: {has_diagonal}")
     print(f"Has enclosed space: {has_cycle}")
+    print(f"Has visual crossings: {has_crossings}")
