@@ -34,6 +34,51 @@ def _validate_binary_symmetric_matrix(matrix: np.ndarray) -> np.ndarray:
     return array.astype(int, copy=False)
 
 
+def has_diagonal_connections(matrix: np.ndarray) -> bool:
+    """Return True if the graph contains at least one non-orthogonal edge."""
+
+    adjacency = _validate_binary_symmetric_matrix(matrix)
+
+    for i in range(9):
+        x1, y1 = POSITIONS[LABELS[i]]
+        for j in range(i + 1, 9):
+            if adjacency[i, j] != 1:
+                continue
+
+            x2, y2 = POSITIONS[LABELS[j]]
+            if x1 != x2 and y1 != y2:
+                return True
+
+    return False
+
+
+def has_enclosed_space(matrix: np.ndarray) -> bool:
+    """Return True if the graph contains at least one cycle/closed loop."""
+
+    adjacency = _validate_binary_symmetric_matrix(matrix)
+    visited = [False] * 9
+
+    def depth_first_search(node: int, parent: int) -> bool:
+        visited[node] = True
+
+        for neighbor in range(9):
+            if adjacency[node, neighbor] != 1:
+                continue
+            if not visited[neighbor]:
+                if depth_first_search(neighbor, node):
+                    return True
+            elif neighbor != parent:
+                return True
+
+        return False
+
+    for node in range(9):
+        if not visited[node] and depth_first_search(node, -1):
+            return True
+
+    return False
+
+
 def render_letter_graph(matrix: np.ndarray, dpi: int = 200) -> Image.Image:
     """Render a symmetric 9x9 binary adjacency matrix as a 3x3 letter graph."""
 
@@ -87,4 +132,9 @@ if __name__ == "__main__":
     sample[3, 4] = sample[4, 3] = 1
     sample[0, 4] = sample[4, 0] = 1
     sample[3, 8] = sample[8, 3] = 1
+    sample[1, 8] = sample[8, 1] = 1
     save_letter_graph(sample, "letter_graph.png")
+    has_diagonal = has_diagonal_connections(sample)
+    has_cycle = has_enclosed_space(sample)
+    print(f"Has diagonal connections: {has_diagonal}")
+    print(f"Has enclosed space: {has_cycle}")
