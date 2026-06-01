@@ -129,6 +129,35 @@ def has_vertical_symmetry(matrix: np.ndarray) -> bool:
     return np.array_equal(adjacency, mirrored)
 
 
+def has_horizontal_symmetry(matrix: np.ndarray) -> bool:
+    """Return True if the graph is symmetric around the horizontal D-E-F axis.
+
+    This reflects rows: top<->bottom (A<->G, B<->H, C<->I), leaving D/E/F
+    unchanged.
+    """
+
+    adjacency = _validate_binary_symmetric_matrix(matrix)
+
+    mirrored_indices = {
+        0: 6,
+        1: 7,
+        2: 8,
+        3: 3,
+        4: 4,
+        5: 5,
+        6: 0,
+        7: 1,
+        8: 2,
+    }
+
+    mirrored = adjacency.copy()
+    for source_row, target_row in mirrored_indices.items():
+        for source_col, target_col in mirrored_indices.items():
+            mirrored[target_row, target_col] = adjacency[source_row, source_col]
+
+    return np.array_equal(adjacency, mirrored)
+
+
 def has_visual_crossings(matrix: np.ndarray) -> bool:
     """Return True if at least two drawn edges cross visually.
 
@@ -252,9 +281,11 @@ if __name__ == "__main__":
     has_cycle = has_enclosed_space(sample)
     has_crossings = has_visual_crossings(sample)
     has_disconnected = has_disconnected_parts(sample)
-    has_vertical_symmetry = has_vertical_symmetry(sample)
+    has_vert_symmetry = has_vertical_symmetry(sample)
+    has_hor_symmetry = has_horizontal_symmetry(sample)
     print(f"Has diagonal connections: {has_diagonal}")
     print(f"Has enclosed space: {has_cycle}")
     print(f"Has visual crossings: {has_crossings}")
     print(f"Has disconnected parts: {has_disconnected}")
-    print(f"Has vertical symmetry: {has_vertical_symmetry}")
+    print(f"Has vertical symmetry: {has_vert_symmetry}")
+    print(f"Has horizontal symmetry: {has_hor_symmetry}")
