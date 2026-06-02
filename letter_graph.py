@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from io import BytesIO
 
 import matplotlib.pyplot as plt
@@ -198,19 +199,16 @@ def has_eulerian_trail(matrix: np.ndarray) -> bool:
 def has_visual_crossings(matrix: np.ndarray) -> bool:
     """Return True if at least two drawn edges cross visually.
 
-    This checks segment intersections in the 3x3 layout and ignores pairs of
-    edges that only meet because they share a node or touch at an endpoint.
-    It still counts cases where a segment passes through a node that is the
-    endpoint of another segment, which is a visually meaningful crossing.
+    A visual crossing happens when two full straight lines intersect on the
+    drawing. That includes:
+    - a proper interior intersection between two edges,
+    - a segment passing through a node used by another edge, and
+    - two straight lines that cross at a node, even if each line is split into
+      two edges by that node.
     """
 
     adjacency = _validate_binary_symmetric_matrix(matrix)
-    edges = []
-
-    for i in range(9):
-        for j in range(i + 1, 9):
-            if adjacency[i, j] == 1:
-                edges.append((i, j))
+    edges = [(i, j) for i in range(9) for j in range(i + 1, 9) if adjacency[i, j] == 1]
 
     def orientation(p, q, r):
         return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
@@ -227,33 +225,65 @@ def has_visual_crossings(matrix: np.ndarray) -> bool:
         o2 = orientation(p1, q1, q2)
         o3 = orientation(p2, q2, p1)
         o4 = orientation(p2, q2, q1)
+        return (o1 > 0) != (o2 > 0) and (o3 > 0) != (o4 > 0)
 
-        if (o1 > 0) != (o2 > 0) and (o3 > 0) != (o4 > 0):
-            return True
+    def normalized_direction(dx: int, dy: int) -> tuple[int, int]:
+        divisor = math.gcd(abs(dx), abs(dy))
+        dx //= divisor
+        dy //= divisor
+        return dx, dy
 
-        # If a node lies on the interior of one segment and is an endpoint of
-        # another, that is also a visible crossing in this drawing.
-        for node in (p2, q2):
-            if node != p1 and node != q1 and on_segment(p1, node, q1):
-                return True
-
-        for node in (p1, q1):
-            if node != p2 and node != q2 and on_segment(p2, node, q2):
-                return True
-
-        return False
-
+    # Proper interior crossings between two independent edges.
     for index, (i1, j1) in enumerate(edges):
         p1 = POSITIONS[LABELS[i1]]
         q1 = POSITIONS[LABELS[j1]]
-
         for i2, j2 in edges[index + 1 :]:
             if {i1, j1} & {i2, j2}:
                 continue
-
             p2 = POSITIONS[LABELS[i2]]
             q2 = POSITIONS[LABELS[j2]]
             if segments_cross(p1, q1, p2, q2):
+                return True
+
+    # Node-centered crossings: two distinct straight lines meet at the same node.
+    opposite_axes = [
+        {(-1, 0), (1, 0)},
+        {(0, -1), (0, 1)},
+        {(-1, -1), (1, 1)},
+        {(-1, 1), (1, -1)},
+    ]
+
+    for node_index, node_label in enumerate(LABELS):
+        node = POSITIONS[node_label]
+        directions = set()
+
+        for neighbor_index, neighbor_label in enumerate(LABELS):
+            if adjacency[node_index, neighbor_index] != 1:
+                continue
+
+            neighbor = POSITIONS[neighbor_label]
+            dx = neighbor[0] - node[0]
+            dy = neighbor[1] - node[1]
+            if dx == 0 and dy == 0:
+                continue
+            directions.add(normalized_direction(dx, dy))
+
+        full_lines = 0
+        for axis in opposite_axes:
+            if axis.issubset(directions):
+                full_lines += 1
+
+        if full_lines >= 2:
+            return True
+
+        # A line can also pass through the node without ending there.
+        for i, j in edges:
+            if node_index in (i, j):
+                continue
+
+            p1 = POSITIONS[LABELS[i]]
+            q1 = POSITIONS[LABELS[j]]
+            if on_segment(p1, node, q1):
                 return True
 
     return False
