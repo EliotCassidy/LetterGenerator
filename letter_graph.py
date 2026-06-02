@@ -158,6 +158,42 @@ def has_horizontal_symmetry(matrix: np.ndarray) -> bool:
     return np.array_equal(adjacency, mirrored)
 
 
+def has_eulerian_trail(matrix: np.ndarray) -> bool:
+    """Return True if the graph can be drawn in one stroke (Eulerian trail).
+
+    Conditions for an undirected graph:
+    - The graph is connected when ignoring isolated vertices, and
+    - Either 0 or 2 vertices have odd degree.
+    An empty graph (no edges) is considered drawable.
+    """
+
+    adjacency = _validate_binary_symmetric_matrix(matrix)
+    degrees = adjacency.sum(axis=1)
+    active = np.where(degrees > 0)[0]
+
+    if active.size == 0:
+        return True
+
+    # check connectivity among active nodes
+    visited = set()
+    stack = [int(active[0])]
+    while stack:
+        node = stack.pop()
+        if node in visited:
+            continue
+        visited.add(node)
+        neighbors = np.where(adjacency[node] == 1)[0]
+        for nb in neighbors:
+            if int(nb) not in visited:
+                stack.append(int(nb))
+
+    if set(active) - visited:
+        return False
+
+    odd = int(np.sum(degrees % 2 == 1))
+    return odd == 0 or odd == 2
+
+
 def has_visual_crossings(matrix: np.ndarray) -> bool:
     """Return True if at least two drawn edges cross visually.
 
@@ -283,9 +319,11 @@ if __name__ == "__main__":
     has_disconnected = has_disconnected_parts(sample)
     has_vert_symmetry = has_vertical_symmetry(sample)
     has_hor_symmetry = has_horizontal_symmetry(sample)
+    has_eulerian = has_eulerian_trail(sample)
     print(f"Has diagonal connections: {has_diagonal}")
     print(f"Has enclosed space: {has_cycle}")
     print(f"Has visual crossings: {has_crossings}")
     print(f"Has disconnected parts: {has_disconnected}")
     print(f"Has vertical symmetry: {has_vert_symmetry}")
     print(f"Has horizontal symmetry: {has_hor_symmetry}")
+    print(f"Has Eulerian trail: {has_eulerian}")
