@@ -4,6 +4,7 @@ from io import BytesIO
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.gridspec import GridSpec
 from PIL import Image
 
 
@@ -258,12 +259,50 @@ def has_visual_crossings(matrix: np.ndarray) -> bool:
     return False
 
 
-def render_letter_graph(matrix: np.ndarray, dpi: int = 200) -> Image.Image:
-    """Render a symmetric 9x9 binary adjacency matrix as a 3x3 letter graph."""
+def _rule_results(matrix: np.ndarray) -> list[tuple[str, bool]]:
+    return [
+        ("Diagonal", has_diagonal_connections(matrix)),
+        ("Enclosed", has_enclosed_space(matrix)),
+        ("Disconnected", has_disconnected_parts(matrix)),
+        ("Vertical symmetry", has_vertical_symmetry(matrix)),
+        ("Horizontal symmetry", has_horizontal_symmetry(matrix)),
+        ("Eulerian trail", has_eulerian_trail(matrix)),
+        ("Visual crossings", has_visual_crossings(matrix)),
+    ]
 
-    adjacency = _validate_binary_symmetric_matrix(matrix)
 
-    fig, ax = plt.subplots(figsize=(5, 5), dpi=dpi)
+def _render_matrix_thumbnail(ax: plt.Axes, adjacency: np.ndarray) -> None:
+    ax.imshow(adjacency, cmap="Greys", vmin=0, vmax=1)
+    ax.set_xticks(range(9))
+    ax.set_yticks(range(9))
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.tick_params(length=0)
+
+    for row in range(9):
+        for col in range(9):
+            ax.text(col, row, str(int(adjacency[row, col])), ha="center", va="center", fontsize=5, color="#111111")
+
+    ax.set_title("Matrix 0/1", fontsize=10, pad=6)
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_color("#888888")
+
+
+def _render_rules_panel(ax: plt.Axes, adjacency: np.ndarray) -> None:
+    ax.axis("off")
+    ax.set_title("Rules", fontsize=12, fontweight="bold", loc="left", pad=8)
+
+    y = 0.94
+    for label, value in _rule_results(adjacency):
+        status = "TRUE" if value else "FALSE"
+        color = "#1B8A3D" if value else "#B42318"
+        ax.text(0.0, y, f"{label}:", transform=ax.transAxes, fontsize=9, ha="left", va="top", color="#111111")
+        ax.text(0.98, y, status, transform=ax.transAxes, fontsize=9, ha="right", va="top", color=color, fontweight="bold")
+        y -= 0.105
+
+
+def _render_graph_panel(ax: plt.Axes, adjacency: np.ndarray) -> None:
     ax.set_aspect("equal")
     ax.axis("off")
 
@@ -287,7 +326,25 @@ def render_letter_graph(matrix: np.ndarray, dpi: int = 200) -> Image.Image:
 
     ax.set_xlim(-0.5, 2.5)
     ax.set_ylim(-0.5, 2.5)
-    fig.tight_layout(pad=0.2)
+
+
+def render_letter_graph(matrix: np.ndarray, dpi: int = 200) -> Image.Image:
+    """Render the graph plus a side panel with rule results and a matrix thumbnail."""
+
+    adjacency = _validate_binary_symmetric_matrix(matrix)
+
+    fig = plt.figure(figsize=(10, 5.8), dpi=dpi, constrained_layout=True)
+    grid = GridSpec(2, 2, figure=fig, width_ratios=[1.65, 1.0], height_ratios=[1.15, 0.85], wspace=0.18, hspace=0.28)
+
+    ax_graph = fig.add_subplot(grid[:, 0])
+    ax_rules = fig.add_subplot(grid[0, 1])
+    ax_matrix = fig.add_subplot(grid[1, 1])
+
+    _render_graph_panel(ax_graph, adjacency)
+    _render_rules_panel(ax_rules, adjacency)
+    _render_matrix_thumbnail(ax_matrix, adjacency)
+
+    fig.suptitle("Letter Graph Summary", fontsize=14, fontweight="bold", y=0.98)
 
     buffer = BytesIO()
     fig.savefig(buffer, format="png", bbox_inches="tight", pad_inches=0.05)
