@@ -199,79 +199,72 @@ def has_eulerian_trail(matrix: np.ndarray) -> bool:
 def has_visual_crossings(matrix: np.ndarray) -> bool:
     """Return True if at least two drawn edges cross visually.
 
-    A crossing is when two straight lines intersect strictly in their interiors.
-    Collinear overlapping segments and T-junctions (where one edge ends on another)
-    are not considered crossings.
+    A visual crossing happens when two full straight lines intersect on the
+    drawing. That includes:
+    - a proper interior intersection between two edges,
+    - a segment passing through a node used by another edge, and
+    - two straight lines that cross at a node, even if each line is split into
+      two edges by that node.
     """
 
-    adjacency = _validate_binary_symmetric_matrix(matrix)
+    array = np.asarray(matrix).astype(int)
+    A, B, C, D, E, F, G, H, I = range(9)
 
-    three_node_lines = [
-        ["A", "B", "C"], # Row 2
-        ["D", "E", "F"], # Row 1
-        ["G", "H", "I"], # Row 0
-        ["G", "D", "A"], # Col 0
-        ["H", "E", "B"], # Col 1
-        ["I", "F", "C"], # Col 2
-        ["I", "E", "A"], # Main Diag
-        ["G", "E", "C"], # Anti Diag
+    # 1. TEST DU NOEUD CENTRAL (E) - Valable pour toute la grille
+    lines_at_E = [
+        array[H, B],  # HB
+        array[D, F],  # DF
+        array[A, I],  # AI
+        array[C, G]   # CG
+    ]
+    if sum(lines_at_E) >= 2:
+        return True
+
+    # 2. CONFIGURATIONS SOURCE POUR LE CADRAN MAÎTRE : EHFI (Bas-Droite)
+    simple_crossings = [
+        ((I, E), (H, F)),  # N1
+        ((I, B), (H, F)),  # N2
+        ((I, D), (H, F)),  # N8
+        ((G, F), (I, B)),  # N3
+        ((C, H), (I, D))   # N7
     ]
 
-    active_edges = set()
-    for i in range(9):
-        for j in range(i + 1, 9):
-            if adjacency[i, j] == 1:
-                active_edges.add((LABELS[i], LABELS[j]))
+    # Groupes concourants (N4, N5, N6) : "2 parmi les 3"
+    concurent_groups = [
+        [(I, E), (G, F), (H, C)],  # N5
+        [(E, F), (H, C), (B, I)],  # N4
+        [(E, H), (I, D), (G, F)]   # N6
+    ]
 
-    def has_edge(u: str, v: str) -> bool:
-        return (u, v) in active_edges or (v, u) in active_edges
+    # 3. TRANSPOSITION ET APPLICATION AUX 4 CADRANS VIA LES SYMÉTRIES    
+    cadrans_mappings = [
+        # 1. Bas-Droite (EHFI) -> Identité
+        {A:A, B:B, C:C, D:D, E:E, F:F, G:G, H:H, I:I},
+        # 2. Bas-Gauche (DGHIE) -> Inversion Gauche/Droite
+        {C:A, B:B, A:C, F:D, E:E, D:F, I:G, H:H, G:I},
+        # 3. Haut-Droite (ABEDF) -> Inversion Haut/Bas
+        {G:A, H:B, I:C, D:D, E:E, F:F, A:G, B:H, C:I},
+        # 4. Haut-Gauche (ABED) -> Double Inversion
+        {I:A, H:B, G:C, F:D, E:E, D:F, C:G, B:H, A:I}
+    ]
 
-    merged_segments = []
-    processed_edges = set()
-
-    for line in three_node_lines:
-        n0, n1, n2 = line
-        e01 = (n0, n1)
-        e12 = (n1, n2)
-        e02 = (n0, n2)
-
-        has_e01 = has_edge(n0, n1)
-        has_e12 = has_edge(n1, n2)
-        has_e02 = has_edge(n0, n2)
-
-        for u, v in [e01, e12, e02]:
-            if has_edge(u, v):
-                processed_edges.add(tuple(sorted([u, v])))
-
-        if has_e02 or (has_e01 and has_e12):
-            merged_segments.append((POSITIONS[n0], POSITIONS[n2]))
-        elif has_e01:
-            merged_segments.append((POSITIONS[n0], POSITIONS[n1]))
-        elif has_e12:
-            merged_segments.append((POSITIONS[n1], POSITIONS[n2]))
-
-    for u, v in active_edges:
-        edge_key = tuple(sorted([u, v]))
-        if edge_key not in processed_edges:
-            merged_segments.append((POSITIONS[u], POSITIONS[v]))
-
-    def orientation(p: tuple[int, int], q: tuple[int, int], r: tuple[int, int]) -> int:
-        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
-
-    def segments_cross(p1: tuple[int, int], q1: tuple[int, int], p2: tuple[int, int], q2: tuple[int, int]) -> bool:
-        o1 = orientation(p2, q2, p1)
-        o2 = orientation(p2, q2, q1)
-        o3 = orientation(p1, q1, p2)
-        o4 = orientation(p1, q1, q2)
-        return (o1 * o2 < 0) and (o3 * o4 < 0)
-
-    n_segs = len(merged_segments)
-    for i in range(n_segs):
-        p1, q1 = merged_segments[i]
-        for j in range(i + 1, n_segs):
-            p2, q2 = merged_segments[j]
-            if segments_cross(p1, q1, p2, q2):
+    # Test pour chaque cadran géométrique
+    for mapping in cadrans_mappings:
+        # A. Test des croisements simples (N1, N2, N8, N3, N7)
+        for (u1, v1), (u2, v2) in simple_crossings:
+            edge1_active = array[mapping[u1], mapping[v1]] == 1
+            edge2_active = array[mapping[u2], mapping[v2]] == 1
+            if edge1_active and edge2_active:
                 return True
+
+        # B. Test des groupes concourants (N4, N5, N6)
+        for edge_list in concurent_groups:
+            active_count = 0
+            for u, v in edge_list:
+                if array[mapping[u], mapping[v]] == 1:
+                    active_count += 1
+                    if active_count >= 2:
+                        return True
 
     return False
 
