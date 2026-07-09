@@ -13,7 +13,8 @@ from letter_graph import (
     has_eulerian_trail,
     has_horizontal_symmetry,
     has_vertical_symmetry,
-    has_visual_crossings,
+    has_visual_crossings_extended,
+    has_visual_crossings_restricted,
 )
 
 
@@ -41,7 +42,8 @@ RULES: list[tuple[str, Callable[[np.ndarray], bool]]] = [
     ("Vertical symmetry", has_vertical_symmetry),
     ("Horizontal symmetry", has_horizontal_symmetry),
     ("Eulerian trail", has_eulerian_trail),
-    ("Visual crossings", has_visual_crossings),
+    ("Visual crossings extended", has_visual_crossings_extended),
+    ("Visual crossings restricted", has_visual_crossings_restricted),
 ]
 
 
