@@ -199,91 +199,78 @@ def has_eulerian_trail(matrix: np.ndarray) -> bool:
 def has_visual_crossings(matrix: np.ndarray) -> bool:
     """Return True if at least two drawn edges cross visually.
 
-    A visual crossing happens when two full straight lines intersect on the
-    drawing. That includes:
-    - a proper interior intersection between two edges,
-    - a segment passing through a node used by another edge, and
-    - two straight lines that cross at a node, even if each line is split into
-      two edges by that node.
+    A crossing is when two straight lines intersect strictly in their interiors.
+    Collinear overlapping segments and T-junctions (where one edge ends on another)
+    are not considered crossings.
     """
 
     adjacency = _validate_binary_symmetric_matrix(matrix)
-    edges = [(i, j) for i in range(9) for j in range(i + 1, 9) if adjacency[i, j] == 1]
 
-    def orientation(p, q, r):
-        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
-
-    def on_segment(p, q, r):
-        return (
-            min(p[0], r[0]) <= q[0] <= max(p[0], r[0])
-            and min(p[1], r[1]) <= q[1] <= max(p[1], r[1])
-            and orientation(p, q, r) == 0
-        )
-
-    def segments_cross(p1, q1, p2, q2):
-        o1 = orientation(p1, q1, p2)
-        o2 = orientation(p1, q1, q2)
-        o3 = orientation(p2, q2, p1)
-        o4 = orientation(p2, q2, q1)
-        return (o1 > 0) != (o2 > 0) and (o3 > 0) != (o4 > 0)
-
-    def normalized_direction(dx: int, dy: int) -> tuple[int, int]:
-        divisor = math.gcd(abs(dx), abs(dy))
-        dx //= divisor
-        dy //= divisor
-        return dx, dy
-
-    # Proper interior crossings between two independent edges.
-    for index, (i1, j1) in enumerate(edges):
-        p1 = POSITIONS[LABELS[i1]]
-        q1 = POSITIONS[LABELS[j1]]
-        for i2, j2 in edges[index + 1 :]:
-            if {i1, j1} & {i2, j2}:
-                continue
-            p2 = POSITIONS[LABELS[i2]]
-            q2 = POSITIONS[LABELS[j2]]
-            if segments_cross(p1, q1, p2, q2):
-                return True
-
-    # Node-centered crossings: two distinct straight lines meet at the same node.
-    opposite_axes = [
-        {(-1, 0), (1, 0)},
-        {(0, -1), (0, 1)},
-        {(-1, -1), (1, 1)},
-        {(-1, 1), (1, -1)},
+    three_node_lines = [
+        ["A", "B", "C"], # Row 2
+        ["D", "E", "F"], # Row 1
+        ["G", "H", "I"], # Row 0
+        ["G", "D", "A"], # Col 0
+        ["H", "E", "B"], # Col 1
+        ["I", "F", "C"], # Col 2
+        ["I", "E", "A"], # Main Diag
+        ["G", "E", "C"], # Anti Diag
     ]
 
-    for node_index, node_label in enumerate(LABELS):
-        node = POSITIONS[node_label]
-        directions = set()
+    active_edges = set()
+    for i in range(9):
+        for j in range(i + 1, 9):
+            if adjacency[i, j] == 1:
+                active_edges.add((LABELS[i], LABELS[j]))
 
-        for neighbor_index, neighbor_label in enumerate(LABELS):
-            if adjacency[node_index, neighbor_index] != 1:
-                continue
+    def has_edge(u: str, v: str) -> bool:
+        return (u, v) in active_edges or (v, u) in active_edges
 
-            neighbor = POSITIONS[neighbor_label]
-            dx = neighbor[0] - node[0]
-            dy = neighbor[1] - node[1]
-            if dx == 0 and dy == 0:
-                continue
-            directions.add(normalized_direction(dx, dy))
+    merged_segments = []
+    processed_edges = set()
 
-        full_lines = 0
-        for axis in opposite_axes:
-            if axis.issubset(directions):
-                full_lines += 1
+    for line in three_node_lines:
+        n0, n1, n2 = line
+        e01 = (n0, n1)
+        e12 = (n1, n2)
+        e02 = (n0, n2)
 
-        if full_lines >= 2:
-            return True
+        has_e01 = has_edge(n0, n1)
+        has_e12 = has_edge(n1, n2)
+        has_e02 = has_edge(n0, n2)
 
-        # A line can also pass through the node without ending there.
-        for i, j in edges:
-            if node_index in (i, j):
-                continue
+        for u, v in [e01, e12, e02]:
+            if has_edge(u, v):
+                processed_edges.add(tuple(sorted([u, v])))
 
-            p1 = POSITIONS[LABELS[i]]
-            q1 = POSITIONS[LABELS[j]]
-            if on_segment(p1, node, q1):
+        if has_e02 or (has_e01 and has_e12):
+            merged_segments.append((POSITIONS[n0], POSITIONS[n2]))
+        elif has_e01:
+            merged_segments.append((POSITIONS[n0], POSITIONS[n1]))
+        elif has_e12:
+            merged_segments.append((POSITIONS[n1], POSITIONS[n2]))
+
+    for u, v in active_edges:
+        edge_key = tuple(sorted([u, v]))
+        if edge_key not in processed_edges:
+            merged_segments.append((POSITIONS[u], POSITIONS[v]))
+
+    def orientation(p: tuple[int, int], q: tuple[int, int], r: tuple[int, int]) -> int:
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+
+    def segments_cross(p1: tuple[int, int], q1: tuple[int, int], p2: tuple[int, int], q2: tuple[int, int]) -> bool:
+        o1 = orientation(p2, q2, p1)
+        o2 = orientation(p2, q2, q1)
+        o3 = orientation(p1, q1, p2)
+        o4 = orientation(p1, q1, q2)
+        return (o1 * o2 < 0) and (o3 * o4 < 0)
+
+    n_segs = len(merged_segments)
+    for i in range(n_segs):
+        p1, q1 = merged_segments[i]
+        for j in range(i + 1, n_segs):
+            p2, q2 = merged_segments[j]
+            if segments_cross(p1, q1, p2, q2):
                 return True
 
     return False
